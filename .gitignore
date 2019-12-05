@@ -1,3 +1,7 @@
+_build/
+rebar.lock
+*.beam
+.rebar3/
 ebin/
 *.dump
 deps/

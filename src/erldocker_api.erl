@@ -1,8 +1,9 @@
 -module(erldocker_api).
--export([get/1, get/2, post/1, post/2, post/3, delete/1, delete/2]).
+-export([get/1, get/2, post/1, post/2, post/3, delete/1, delete/2, delete_ignore/2, delete_ignore/1, post_ignore/1, post_ignore/2, get_stream/3,
+post_stream/3]).
 -export([get_stream/1, get_stream/2, post_stream/1, post_stream/2]).
 -export([proplist_from_json/1, proplists_from_json/1]).
-
+-export([to_url/1, to_url/2]). % Temporary
 -define(ADDR, application:get_env(erldocker, docker_http, <<"http://localhost:4243">>)).
 -define(OPTIONS, [{pool, erldocker_pool}]).
 
@@ -11,15 +12,21 @@ get(URL, Args)         -> call(get, <<>>, URL, Args).
 post(URL)              -> call(post, <<>>, URL, []).
 post(URL, Args)        -> call(post, <<>>, URL, Args).
 post(URL, Args, Body)  -> call(post, Body, URL, Args).
+post_ignore(URL)       -> call(post, <<>>, URL, [], ignore_response).
+post_ignore(URL, Args) -> call(post, <<>>, URL, Args, ignore_response).
 delete(URL)            -> call(delete, <<>>, URL, []).
 delete(URL, Args)      -> call(delete, <<>>, URL, Args).
+delete_ignore(URL)     -> call(delete, <<>>, URL, [], ignore_response).
+delete_ignore(URL, Args) -> call(delete, <<>>, URL, Args, ignore_response).
+    
 get_stream(URL)        -> call({get, stream}, <<>>, URL, []).
 get_stream(URL, Args)  -> call({get, stream}, <<>>, URL, Args).
+get_stream(URL, Args, Receiver)  -> call({get, stream}, <<>>, URL, Args, Receiver).
 post_stream(URL)       -> call({post, stream}, <<>>, URL, []).
 post_stream(URL, Args) -> call({post, stream}, <<>>, URL, Args).
+post_stream(URL, Args, Receiver) -> call({post, stream}, <<>>, URL, Args, Receiver).
 
 call({Method, stream}, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
-    error_logger:info_msg("api call: ~p ~s", [{Method, stream}, binary_to_list(URL)]),
     case hackney:request(Method, URL, [], Body, ?OPTIONS) of
         {ok, StatusCode, _RespHeaders, Client} ->
             case StatusCode of
@@ -35,7 +42,6 @@ call({Method, stream}, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
     end;
 
 call(Method, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
-    error_logger:info_msg("api call: ~p ~s", [Method, binary_to_list(URL)]),
     ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
     case hackney:request(Method, URL, ReqHeaders, Body, ?OPTIONS) of
         {ok, StatusCode, RespHeaders, Client} ->
@@ -53,8 +59,42 @@ call(Method, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
             E
     end.
 
+call(Method, Body, URL, ignore_response) when is_binary(URL) andalso is_binary(Body) ->
+    ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
+    case hackney:request(Method, URL, ReqHeaders, Body, ?OPTIONS) of
+        {ok, StatusCode, RespHeaders, _Client} ->        
+            case StatusCode of
+                X when X == 200 orelse X == 201 orelse X == 204 ->
+                    case lists:keyfind(<<"Content-Type">>, 1, RespHeaders) of
+                        {_, <<"application/json">>} -> {ok, {}};
+                        _ -> {ok, {StatusCode, {}}}
+                    end;
+                _ ->
+                    {error, {StatusCode, {}}}
+            end;
+        {error, _} = E ->
+            E
+    end;
+
 call(Method, Body, URL, Args) when is_binary(Body) ->
     call(Method, Body, to_url(URL, Args)).
+
+call(Method, Body, URL, Args, ignore_response) when is_binary(Body) ->
+    call(Method, Body, to_url(URL, Args), ignore_response);
+
+call({Method, stream}, Body, URL, Args, Rcv) when is_binary(Body) ->
+    case hackney:request(Method, to_url(URL, Args), [], Body, ?OPTIONS) of
+        {ok, StatusCode, _RespHeaders, Client} ->
+            case StatusCode of
+                X when X == 200 orelse X == 201 orelse X == 204 ->
+                    Pid = spawn_link(fun() -> read_body(Rcv, Client) end),
+                    {ok, Pid};
+                _ ->
+                    {error, StatusCode}
+            end;
+        {error, _} = E ->
+            E
+    end.
 
 read_body(Receiver, Client) ->
     case hackney:stream_body(Client) of

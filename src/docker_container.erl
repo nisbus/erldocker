@@ -11,7 +11,7 @@
 -export([stop/1, stop/2]).
 -export([restart/1, restart/2]).
 -export([kill/1]).
--export([attach_logs/1, attach_stream/1, attach_stream_with_logs/1]).
+-export([attach_logs/1, attach_stream/1, attach_stream/2, attach_stream_with_logs/1, attach_stream_with_logs/2]).
 -export([delete/1, delete/2]).
 -export([wait/1]).
 -export([commit/1, commit/2]).
@@ -28,7 +28,7 @@
 % @doc Identical to the docker ps command.
 containers() -> containers(default_args(containers)).
 containers(Args) ->
-    ?PROPLISTS(erldocker_api:get([containers, ps], Args)).
+    ?PROPLISTS(erldocker_api:get([containers, json], Args)).
 
 % @doc Identical to the docker inspect command, but can only be used with a container ID.
 container(CID) ->
@@ -54,7 +54,7 @@ export(CID) ->
 
 % @doc Start the container.
 start(CID, _Config) ->
-    erldocker_api:post([containers, CID, start]).
+    erldocker_api:post_ignore([containers, CID, start]).
 
 % @doc Allows to bind a directory in the host to the container.
 % Similar to the docker run command with the -b="/host:/mnt".
@@ -65,7 +65,7 @@ start(CID, _Config) ->
 % @doc Stop the container.
 stop(CID) -> stop(CID, default_args(stop)).
 stop(CID, Args) ->
-    erldocker_api:post([containers, CID, stop], Args).
+    erldocker_api:post_ignore([containers, CID, stop], Args).
 
 % @doc Restart the container.
 restart(CID) -> restart(CID, default_args(restart)).
@@ -78,7 +78,7 @@ kill(CID) ->
 
 % @doc Attach to container and grab logs.
 attach_logs(CID) ->
-    either:bind(erldocker_api:post_stream([containers, CID, attach], [logs, stdout, stderr]), fun logs_proc/1).
+    either:bind(erldocker_api:get_stream([containers, CID, logs], [follow, stdout, stderr]), fun logs_proc/1).
 
 logs_proc(Pid) -> {ok, logs_proc(Pid, [])}.
 logs_proc(Pid, Acc) ->
@@ -92,14 +92,20 @@ logs_proc(Pid, Acc) ->
 attach_stream(CID) ->
     erldocker_api:post_stream([containers, CID, attach], [stream, stdout, stderr]).
 
+attach_stream(CID, Receiver) ->
+    erldocker_api:post_stream([containers, CID, attach], [stream, stdout, stderr], Receiver).
+
 % @doc Attach to container. Starts sending messages to calling process with output since the container start. Returns {ok, Pid}.
 attach_stream_with_logs(CID) ->
     erldocker_api:post_stream([containers, CID, attach], [stream, logs, stdout, stderr]).
 
+attach_stream_with_logs(CID, Receiver) ->
+    erldocker_api:post_stream([containers, CID, attach], [stream, logs, stdout, stderr], Receiver).
+
 % @doc Identical to the docker rm command.
 delete(CID) -> delete(CID, default_args(delete)).
 delete(CID, Args) ->
-    erldocker_api:delete([containers, CID], Args).
+    erldocker_api:delete_ignore([containers, CID], Args).
 
 % @doc Identical to the docker wait command.
 wait(CID) ->
