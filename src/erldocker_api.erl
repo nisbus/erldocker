@@ -42,6 +42,7 @@ call({Method, stream}, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
     end;
 
 call(Method, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
+    io:format("Calling ~p, ~p, ~p, ~p~n", [Method, URL, RequestHeaders, Body]),
     ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
     case hackney:request(Method, URL, ReqHeaders, Body, ?OPTIONS) of
         {ok, StatusCode, RespHeaders, Client} ->
@@ -60,6 +61,7 @@ call(Method, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
     end.
 
 call(Method, Body, URL, ignore_response) when is_binary(URL) andalso is_binary(Body) ->
+    io:format("Calling ~p, ~p, ~p~n", [Method, URL, Body]),
     ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
     case hackney:request(Method, URL, ReqHeaders, Body, ?OPTIONS) of
         {ok, StatusCode, RespHeaders, _Client} ->        
@@ -76,7 +78,7 @@ call(Method, Body, URL, ignore_response) when is_binary(URL) andalso is_binary(B
             E
     end;
 
-call(Method, Body, URL, Args) when is_binary(Body) ->
+call(Method, Body, URL, Args) when is_binary(Body) -
     call(Method, Body, to_url(URL, Args)).
 
 call(Method, Body, URL, Args, ignore_response) when is_binary(Body) ->
@@ -99,12 +101,15 @@ call({Method, stream}, Body, URL, Args, Rcv) when is_binary(Body) ->
 read_body(Receiver, Client) ->
     case hackney:stream_body(Client) of
         {ok, Data, Client2} ->
-            Receiver ! {self(), {data, Data}},
+	    io:format("Received data ~p~n", [Data])
+            Receiver ! {self(), {data, Data}},	    
             read_body(Receiver, Client2);
         {done, Client2} ->
+	    io:format("Done ~n", [])
             Receiver ! {self(), {data, eof}},
             {ok, Client2};
         {error, _Reason} = E->
+	    io:format("Received error ~p~n", [_Reason])
             Receiver ! {self(), E},
             E
     end.
