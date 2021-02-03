@@ -26,7 +26,6 @@ delete_ignore(URL)     -> call(delete, <<>>, URL, [], ignore_response).
 delete_ignore(URL, Args) -> call(delete, <<>>, URL, Args, ignore_response).
 
 call({Method, stream}, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
-    error_logger:info_msg("api call: ~p ~s", [{Method, stream}, binary_to_list(URL)]),
     case hackney:request(Method, URL, [], Body, ?OPTIONS) of
         {ok, StatusCode, _RespHeaders, Client} ->
             case StatusCode of
@@ -42,7 +41,6 @@ call({Method, stream}, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
     end;
 
 call(Method, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
-    error_logger:info_msg("api call: ~p ~s", [Method, binary_to_list(URL)]),
     ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
     case hackney:request(Method, URL, ReqHeaders, Body, ?OPTIONS) of
         {ok, StatusCode, RespHeaders, Client} ->
@@ -61,7 +59,6 @@ call(Method, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
     end.
 
 call(Method, Body, URL, ignore_response) when is_binary(URL) andalso is_binary(Body) ->
-    error_logger:info_msg("api call: ~p ~s", [Method, binary_to_list(URL)]),
     ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
     case hackney:request(Method, URL, ReqHeaders, Body, ?OPTIONS) of
         {ok, StatusCode, RespHeaders, _Client} ->        
