@@ -1,6 +1,6 @@
 {application, erldocker,
  [
-  {description, ""},
+  {description, "Docker API wrapper"},
   {vsn, "1"},
   {registered, []},
   {applications, [

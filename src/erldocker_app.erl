@@ -9,11 +9,9 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    ok = hackney_pool:start_pool(erldocker_pool, [{timeout, 150000}, {pool_size, 1}]),
-
+    ok = hackney_pool:start_pool(erldocker_pool, [{timeout, 1500000}, {pool_size, 100}]),
     erldocker_sup:start_link().
 
 stop(_State) ->
     hackney_pool:stop_pool(erldocker_pool),
-
     ok.

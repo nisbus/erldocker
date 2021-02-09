@@ -26,6 +26,7 @@ delete_ignore(URL)     -> call(delete, <<>>, URL, [], ignore_response).
 delete_ignore(URL, Args) -> call(delete, <<>>, URL, Args, ignore_response).
 
 call({Method, stream}, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
+    error_logger:info_msg("api call (stream): ~p ~s", [{Method, stream}, binary_to_list(URL)]),
     case hackney:request(Method, URL, [], Body, ?OPTIONS) of
         {ok, StatusCode, _RespHeaders, Client} ->
             case StatusCode of
@@ -34,13 +35,16 @@ call({Method, stream}, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
                     Pid = spawn_link(fun() -> read_body(Rcv, Client) end),
                     {ok, Pid};
                 _ ->
+		    io:format("Error in stream call StatusCode ~p~n", [StatusCode]),
                     {error, StatusCode}
             end;
         {error, _} = E ->
+	    io:format("Error in stream call ~p~n", [E]),
             E
     end;
 
 call(Method, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
+    error_logger:info_msg("api call normal: ~p ~s", [Method, binary_to_list(URL)]),
     ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
     case hackney:request(Method, URL, ReqHeaders, Body, ?OPTIONS) of
         {ok, StatusCode, RespHeaders, Client} ->
@@ -59,6 +63,7 @@ call(Method, Body, URL) when is_binary(URL) andalso is_binary(Body) ->
     end.
 
 call(Method, Body, URL, ignore_response) when is_binary(URL) andalso is_binary(Body) ->
+    error_logger:info_msg("api call ignore: ~p ~s", [Method, binary_to_list(URL)]),
     ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
     case hackney:request(Method, URL, ReqHeaders, Body, ?OPTIONS) of
         {ok, StatusCode, RespHeaders, _Client} ->        
@@ -76,17 +81,21 @@ call(Method, Body, URL, ignore_response) when is_binary(URL) andalso is_binary(B
     end;
 
 call(Method, Body, URL, Args) when is_binary(Body) ->
+    error_logger:info_msg("api call ?: ~p ~p", [Method, URL]),
     call(Method, Body, to_url(URL, Args)).
 
 read_body(Receiver, Client) ->
     case hackney:stream_body(Client) of
         {ok, Data, Client2} ->
+	    io:format("Streaming body to ~p~n", [Data]),
             Receiver ! {self(), {data, Data}},
             read_body(Receiver, Client2);
         {done, Client2} ->
+	    io:format("Stream done~n", []),
             Receiver ! {self(), {data, eof}},
             {ok, Client2};
         {error, _Reason} = E->
+	    io:format("Error reading body ~p~n", [_Reason]),
             Receiver ! {self(), E},
             E
     end.
